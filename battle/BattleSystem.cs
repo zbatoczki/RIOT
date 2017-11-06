@@ -49,10 +49,10 @@ public class BattleSystem : MonoBehaviour {
         //decide who goes first
         BattleStates[] turn = { BattleStates.PLAYERTURN, BattleStates.ENEMYTURN };
         System.Random random = new System.Random();
-        currentState = turn[random.Next(turn.Length)];
+        //currentState = turn[random.Next(turn.Length)];
 
         battleUI.UpdateUI(); //set UI
-        //currentState = BattleStates.PLAYERTURN;
+        currentState = BattleStates.PLAYERTURN;
     }
 
     // Update is called once per frame
@@ -77,6 +77,7 @@ public class BattleSystem : MonoBehaviour {
                 }
                 break;
             case (BattleStates.ENDGAME):
+                currentState = BattleStates.WAIT;
                 EndGame();
                 break;
         }
@@ -117,7 +118,13 @@ public class BattleSystem : MonoBehaviour {
     /// </summary>
     private void EndGame()
     {
-        string winner = "You won!"; //default message
+        StartCoroutine(End());
+    }
+
+    private IEnumerator End()
+    {
+        yield return new WaitForSeconds(2);
+        string winner = "Streamer won!"; //default message
         if (psm.GetStat(Player.STATS.CURRENTHP) <= 0)
             winner = "Twitch chat won!";
         battleUI.SetGameOverMenu(winner);

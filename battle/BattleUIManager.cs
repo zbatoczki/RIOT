@@ -30,6 +30,9 @@ public class BattleUIManager : MonoBehaviour {
     [SerializeField] private Text enemyHP;
     [SerializeField] private Text enemyMP;
 
+    [SerializeField] private Button playerAutoPlayBtn;
+    [SerializeField] private Button enemyAutoPlayBtn;
+
     public enum UIWindows
     {
         PLAYERMENU,
@@ -128,6 +131,32 @@ public class BattleUIManager : MonoBehaviour {
         restore.GetComponent<Button>().interactable = false;
     }
 
+    //turn magic button as interactable (true) or not (false)
+    public void toggleMagic(bool set)
+    {
+        Button magic = playerActionMenu.transform.GetChild(3).gameObject.GetComponent<Button>();
+        if(set)
+            magic.interactable = true;
+        else
+            magic.interactable = false;
+    }
+
+
+    /// <summary>
+    /// Sets interactable for item buttons on or off
+    /// </summary>
+    /// <param name="button">Buttton to set</param>
+    /// <param name="set">set on if true, off if false</param>
+    public void toggleItems(string button, bool set)
+    {
+        int index = button.Equals("potion") ? 0 : 1;
+        Button itemBtn = playerItemsMenu.transform.GetChild(index).gameObject.GetComponent<Button>();
+        if (set)
+            itemBtn.interactable = true;
+        else
+            itemBtn.interactable = false;
+    }
+
     public float checkPlayerLimit()
     {
         return playerLimitBar.localScale.x;
@@ -144,6 +173,11 @@ public class BattleUIManager : MonoBehaviour {
             playerLimitBar.localScale += new Vector3(amount, 0);
         }
            
+    }
+
+    public bool LimitReady()
+    {
+        return playerLimitBar.localScale.x >= 1.0;
     }
 
     public void enableLimitButton()
@@ -203,6 +237,28 @@ public class BattleUIManager : MonoBehaviour {
     public void HideButtonDesc()
     {
         descriptionBox.SetActive(false);
+    }
+
+    public void SetAutoplayBtn(bool player, bool autoplay)
+    {
+        if (player) //if button clicked was the player button
+        {
+            Text playerbtnText = playerAutoPlayBtn.GetComponentInChildren<Text>();
+            if (autoplay)
+                playerbtnText.text = "Player Auto Play: ON";
+            else
+                playerbtnText.text = "Player Auto Play: OFF";
+
+        }
+        else // enemy button was pressed
+        {
+            Text enemybtnText = enemyAutoPlayBtn.GetComponentInChildren<Text>();
+            if (autoplay)
+                enemybtnText.text = "Enemy Auto Play: ON";
+            else
+                enemybtnText.text = "Enemy Auto Play: OFF";
+        }
+            
     }
 
     private void SetButtonDescriptions()

@@ -10,6 +10,9 @@ public class PlayerStateMachine : MonoBehaviour {
     private EnemyStateMachine esm;
     private BattleSystem battleSystem;
     private BattleUIManager battleUI;
+    private bool autoPlay = true;
+
+    private readonly int MAGIC_COST = 300;
 
     public enum PlayerStates
     {
@@ -63,22 +66,69 @@ public class PlayerStateMachine : MonoBehaviour {
         audioManager = AudioManager.instance;
     }
 
+    public void SetAutoPlay()
+    {
+        autoPlay = !autoPlay;
+        battleUI.SetAutoplayBtn(true, autoPlay);
+    }
+
+    private IEnumerator Wait()
+    {
+        Debug.Log("Waiting...");
+        yield return new WaitForSeconds(2);
+        Debug.Log("Done waiting!");
+    }
+
     /// <summary>
     /// Start player's turn
     /// </summary>
     public void StartTurn()
     {
+        StartCoroutine(Begin());      
+    }
+
+    private IEnumerator Begin()
+    {
+        yield return StartCoroutine(Wait());
         if (!anim.enabled) TurnOnAnim();
-        /*if (player.banQuantity < 1)
-            battleUI.DisableBan();
-        else
-            battleUI.EnableBan();*/ 
         player.defense = 0f;
         BattleSystem.skipEnemyTurn = false;
-        battleUI.PlayerActionMenuOn();
-        if (battleUI.checkPlayerLimit() >= 1.0f)
-            battleUI.enableLimitButton();
-        audioManager.PlaySoundEffect(audioManager.menuSelection);
+        CheckStats();
+        if (autoPlay)
+        {
+            Debug.Log("Player is auto running.");
+            AutoPlayTurn();
+        }
+        else
+        {
+            battleUI.PlayerActionMenuOn();
+            audioManager.PlaySoundEffect(audioManager.menuSelection);
+        }
+    }
+
+    private void AutoPlayTurn()
+    {
+        int health = player.GetCurrentHP();
+        int magic = player.GetCurrentMP();
+        int enemyHealth = esm.GetStat(Enemy.STATS.CURRENTHP);
+        int enemyMagic = esm.GetStat(Enemy.STATS.CURRENTMP);
+
+        double percentHealthMissing = (double)health / player.GetMaxHP();
+
+        chosenAction = PlayerActions.ATTACK; //default action
+        if (battleUI.LimitReady() && percentHealthMissing >= 0.25)
+            chosenAction = PlayerActions.LIMIT;
+        else if (percentHealthMissing <= 0.25 && player.PotionsAvail())
+            chosenAction = PlayerActions.POTION;
+        else if (percentHealthMissing <= 0.1 && player.RestoreAvail())
+            chosenAction = PlayerActions.RESTORE;
+        else if (magic >= MAGIC_COST)
+            chosenAction = PlayerActions.MAGIC;
+        else if(player.MagicPotionsAvail())
+            chosenAction = PlayerActions.MAGICPOTION;
+
+        StartCoroutine(PerformAction());
+
     }
 
     public void SetState(PlayerStates state) { currentState = state; }
@@ -109,7 +159,7 @@ public class PlayerStateMachine : MonoBehaviour {
             case (PlayerActions.DEFEND): //applies a % to mitagate on enemy's next attack; also restores minor health
                 Defend();
                 break;
-            case (PlayerActions.MAGIC): //applies a % to mitagate on enemy's next attack; also restores minor health
+            case (PlayerActions.MAGIC):
                 CastMagic();
                 break;
             case (PlayerActions.POTION):
@@ -128,8 +178,8 @@ public class PlayerStateMachine : MonoBehaviour {
                 Democracy();
                 break;
         }
-        Invoke("End", 2f);
-    
+        //Invoke("End", 2f);
+        End();
     }
 
     /// <summary>
@@ -154,13 +204,37 @@ public class PlayerStateMachine : MonoBehaviour {
         int stat = -1;
         switch(s)
         {
-            case (Player.STATS.CURRENTHP): stat = player.currentHP; break;
-            case (Player.STATS.MAXHP): stat = player.maxHP; break;
-            case (Player.STATS.CURRENTMP): stat = player.currentMP; break;
-            case (Player.STATS.MAXMP): stat = player.maxMP; break;
+            case (Player.STATS.CURRENTHP): stat = player.GetCurrentHP(); break;
+            case (Player.STATS.MAXHP): stat = player.GetMaxHP(); break;
+            case (Player.STATS.CURRENTMP): stat = player.GetCurrentMP(); break;
+            case (Player.STATS.MAXMP): stat = player.GetMaxMP(); break;
             //case (Player.STATS.BANQUANTITY): stat = player.banQuantity; break;
         }
         return stat;
+    }
+
+    /// <summary>
+    /// Check player's stats and item quantities and updates menus accordingly
+    /// </summary>
+    private void CheckStats()
+    {
+        //check MP
+        if (player.GetCurrentMP() < 200)
+            battleUI.toggleMagic(false);
+        else 
+            battleUI.toggleMagic(true);
+        //check limit
+        if (battleUI.checkPlayerLimit() >= 1.0f)
+            battleUI.enableLimitButton();
+        //check item counts
+        if (player.PotionsAvail())
+            battleUI.toggleItems("potion", true);
+        else
+            battleUI.toggleItems("potion", false);
+        if (player.MagicPotionsAvail())
+            battleUI.toggleItems("magicpotion", true);
+        else
+            battleUI.toggleItems("magicpotion", false);
     }
 
     /* /////////////////PLAYER ANIMATIONS/////////////////// */
@@ -205,7 +279,7 @@ public class PlayerStateMachine : MonoBehaviour {
         yield return new WaitForSeconds(0.5f);
         anim.Play("PlayerAttack");
         audioManager.PlaySoundEffect(attackSound);
-        DoDamage(player.attackDmg);        
+        DoDamage(player.calcDamage());        
         yield return new WaitForSeconds(0.5f);
         //animate back to starting position
         while (MoveToStart(startPosition))
@@ -222,7 +296,7 @@ public class PlayerStateMachine : MonoBehaviour {
         //Debug.Log("Player will mitigate " + player.defense.ToString("##%") + " of enemy's next attack");
         //restore between 50 - 200 HP
         int extraHealth = BattleSystem.random.Next(50, 201);
-        player.currentHP += extraHealth;
+        player.AddHP(extraHealth);
         CheckHPOverflow();
         //Debug.Log("Player restores " + extraHealth + " HP.");
         //set the defend sprite until next turn
@@ -238,9 +312,9 @@ public class PlayerStateMachine : MonoBehaviour {
         TurnOffAnim();
         GetComponent<SpriteRenderer>().sprite = magicSprite;
         audioManager.PlaySoundEffect(magicSound);
-        player.currentMP -= 200;
+        player.SubtractMP(MAGIC_COST);
         Invoke("TurnOnAnim", 1.5f);
-        DoDamage(player.magicDmg);
+        DoDamage(player.GetMagicDmg());
     }
 
     /// <summary>
@@ -265,7 +339,7 @@ public class PlayerStateMachine : MonoBehaviour {
     /// </summary>
     private void CheckHPOverflow()
     {
-       if (player.currentHP > player.maxHP ) player.currentHP = player.maxHP;
+       if (player.GetCurrentHP() > player.GetMaxHP() ) player.SetHP(player.GetMaxHP());
     }
 
     /// <summary>
@@ -273,7 +347,7 @@ public class PlayerStateMachine : MonoBehaviour {
     /// </summary>
     private void CheckMPOverflow()
     {
-        if (player.currentMP > player.maxMP) player.currentMP = player.maxMP;
+        if (player.GetCurrentMP() > player.GetMaxMP()) player.SetMP(player.GetMaxMP());
     }
 
     /// <summary>
@@ -282,13 +356,14 @@ public class PlayerStateMachine : MonoBehaviour {
     /// <param name="percentage">Percentage to be restored</param>
     private void RestoreHP(float percentage)
     {
-        int missingHP = player.maxHP - player.currentHP;
+        int missingHP = player.GetMaxHP() - player.GetCurrentHP();
         int healthToRestore = Mathf.RoundToInt(missingHP * percentage);
-        player.currentHP += healthToRestore;
+        player.AddHP(healthToRestore);
         CheckHPOverflow();
         PopupTextController.CreatePopupText(healthToRestore.ToString(), transform, PopupTextController.Colors.GREEN);
         audioManager.PlaySoundEffect(audioManager.recovery);
         battleUI.UpdateUI();
+        player.SubtractPotion();
     }
 
     /// <summary>
@@ -297,13 +372,14 @@ public class PlayerStateMachine : MonoBehaviour {
     /// <param name="percentage">Percentage to be restored</param>
     private void RestoreMP(float percentage)
     {
-        int missingMP = player.maxMP - player.currentMP;
+        int missingMP = player.GetMaxMP() - player.GetCurrentMP();
         int mpToRestore = Mathf.RoundToInt(missingMP * percentage);
-        player.currentMP += mpToRestore;
+        player.AddMP(mpToRestore);
         CheckMPOverflow();
         PopupTextController.CreatePopupText(mpToRestore.ToString(), transform, PopupTextController.Colors.BLUE);
         audioManager.PlaySoundEffect(audioManager.recovery);
         battleUI.UpdateUI();
+        player.SubtractMagicPotion();
     }
 
     /*private void Ban()
@@ -319,9 +395,9 @@ public class PlayerStateMachine : MonoBehaviour {
     /// </summary>
     private void Restore()
     {
-        player.currentHP = player.maxHP;
-        player.currentMP = player.maxMP;
-        //player.banQuantity = player.banMaxQuantity;
+        player.SetHP(player.GetMaxHP());
+        player.SetMP(player.GetMaxMP());
+        player.SubtractRestore();
         battleUI.RestoreOff();
         PopupTextController.CreatePopupText("RESTORE", transform, PopupTextController.Colors.MAGENTA);
         audioManager.PlaySoundEffect(audioManager.recovery);
@@ -349,13 +425,13 @@ public class PlayerStateMachine : MonoBehaviour {
         if (player.defense > 0)
             dmg = dmg - (int)(dmg * player.defense);
 
-        if (player.currentHP < dmg)
-            player.currentHP = 0;
+        if (player.GetCurrentHP() < dmg)
+            player.SetHP(0);
         else
-            player.currentHP -= dmg;
+            player.SubtractHP(dmg);
         PopupTextController.CreatePopupText(dmg.ToString(), transform);
 
-        float missingHP = (float)dmg / player.maxHP;
+        float missingHP = (float)dmg / player.GetMaxHP();
         battleUI.UpdatePlayerLimitBar(missingHP);
         battleUI.UpdateUI();
     }

@@ -13,6 +13,7 @@ public class EnemyStateMachine : MonoBehaviour {
     private BattleSystem battleSystem;
     private BattleUIManager battleUI;
     private ChatManager chatManager;
+    private bool autoPlay = true;
 
     public enum EnemyStates
     {
@@ -63,15 +64,48 @@ public class EnemyStateMachine : MonoBehaviour {
         audioManager = AudioManager.instance;
     }
 
+    public void SetAutoPlay()
+    {
+        autoPlay = !autoPlay;
+        battleUI.SetAutoplayBtn(false, autoPlay);
+    }
+
+    private IEnumerator Wait()
+    {
+        Debug.Log("Waiting...");
+        yield return new WaitForSeconds(2);
+        Debug.Log("Done waiting!");
+    }
+
     /// <summary>
     /// Begin enemy's turn. Enables animation and menu
     /// </summary>
     public void StartTurn()
     {
+        StartCoroutine(Begin());
+    }
+
+    private IEnumerator Begin()
+    {
         //Debug.Log("Starting enemy's turn");
-        if (!anim.enabled) TurnOnAnim();
-        battleUI.EnemyActionMenuOn();
-        StartCoroutine(StartVote());           
+        yield return StartCoroutine(Wait());
+        if (autoPlay)
+        {
+            Debug.Log("Enemy is auto running.");
+            AutoPlayTurn();
+        }
+        else
+        {
+            if (!anim.enabled) TurnOnAnim();
+            battleUI.EnemyActionMenuOn();
+            StartCoroutine(StartVote());
+        }
+    }
+
+    private void AutoPlayTurn()
+    {
+        SetAction(EnemyActions.ATTACK);
+        SelectAction( (int)EnemyActions.ATTACK );
     }
 
     /// <summary>
@@ -124,7 +158,8 @@ public class EnemyStateMachine : MonoBehaviour {
                 yield return StartCoroutine(Restore());
                 break;
         }
-        Invoke("End", 1.5f); //once action is done, wait for time then end the turn
+        //Invoke("End", 1.5f); //once action is done, wait for time then end the turn
+        End();
     }
 
     /// <summary>
