@@ -95,6 +95,23 @@ public class BattleUIManager : MonoBehaviour {
         Button[] buttons = instance.transform.GetChild(0).GetComponentsInChildren<Button>();
         buttons[0].onClick.AddListener(() => { battleSystem.RestartGame(); });
         buttons[1].onClick.AddListener(() => { battleSystem.ExitGame(); });
+
+        Text timer = instance.transform.GetChild(0).GetChild(1).GetComponent<Text>();
+        StartCoroutine(StartTimer(timer));
+
+    }
+
+    private float timeLeft = 20.0f;
+    private IEnumerator StartTimer(Text timer)
+    {
+        while(float.Parse(timer.text) > 0.0f)
+        {
+            yield return new WaitForSeconds(1);
+            timeLeft--;
+            timer.text = timeLeft.ToString();            
+        }
+        yield return new WaitForSeconds(1);
+        battleSystem.RestartGame();
     }
 
     private void AllMenusOff()
