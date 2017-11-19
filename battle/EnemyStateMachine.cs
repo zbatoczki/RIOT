@@ -15,6 +15,8 @@ public class EnemyStateMachine : MonoBehaviour {
     private ChatManager chatManager;
     private bool autoPlay = true;
 
+    private readonly int MAGIC_COST = 200;
+
     public enum EnemyStates
     {
         START,
@@ -89,23 +91,37 @@ public class EnemyStateMachine : MonoBehaviour {
     {
         //Debug.Log("Starting enemy's turn");
         yield return StartCoroutine(Wait());
+        if (!anim.enabled) TurnOnAnim();
         if (autoPlay)
         {
             Debug.Log("Enemy is auto running.");
             AutoPlayTurn();
         }
         else
-        {
-            if (!anim.enabled) TurnOnAnim();
+        {     
             battleUI.EnemyActionMenuOn();
+            audioManager.PlaySoundEffect(audioManager.menuSelection);
             StartCoroutine(StartVote());
         }
     }
 
     private void AutoPlayTurn()
     {
-        SetAction(EnemyActions.ATTACK);
-        SelectAction( (int)EnemyActions.ATTACK );
+        int health = enemy.GetCurrentHP();
+        int magic = enemy.GetCurrentMP();
+        int enemyHealth = psm.GetStat(Player.STATS.CURRENTHP);
+        int enemyMagic = psm.GetStat(Player.STATS.CURRENTMP);
+
+        double percentHealthMissing = (double)health / enemy.GetMaxHP();
+
+        chosenAction = BattleSystem.random.NextDouble() >= 0.5 ? EnemyActions.ATTACK : EnemyActions.MAGIC; //default action
+        if (chosenAction == EnemyActions.MAGIC && enemy.GetCurrentMP() <= MAGIC_COST)
+            chosenAction = EnemyActions.ATTACK;
+
+        if (percentHealthMissing <= 0.15)
+            chosenAction = EnemyActions.HEAL;
+
+        StartCoroutine(PerformAction());
     }
 
     /// <summary>
@@ -182,10 +198,10 @@ public class EnemyStateMachine : MonoBehaviour {
         int stat = -1;
         switch (s)
         {
-            case (Enemy.STATS.CURRENTHP): stat = enemy.currentHP; break;
-            case (Enemy.STATS.MAXHP): stat = enemy.maxHP; break;
-            case (Enemy.STATS.CURRENTMP): stat = enemy.currentMP; break;
-            case (Enemy.STATS.MAXMP): stat = enemy.maxMP; break;
+            case (Enemy.STATS.CURRENTHP): stat = enemy.GetCurrentHP(); break;
+            case (Enemy.STATS.MAXHP): stat = enemy.GetMaxHP(); break;
+            case (Enemy.STATS.CURRENTMP): stat = enemy.GetCurrentMP(); break;
+            case (Enemy.STATS.MAXMP): stat = enemy.GetMaxMP(); break;
         }
         return stat;
     }
@@ -231,7 +247,7 @@ public class EnemyStateMachine : MonoBehaviour {
         yield return new WaitForSeconds(0.5f);
         anim.Play("EnemyAttack");
         audioManager.PlaySoundEffect(attackSound);
-        DoDamage(enemy.attackDmg);       
+        DoDamage(enemy.calcDamage());       
         yield return new WaitForSeconds(0.5f);
         //animate back to starting position
         while (MoveToStart(startPosition))
@@ -247,19 +263,19 @@ public class EnemyStateMachine : MonoBehaviour {
         TurnOffAnim();
         GetComponent<SpriteRenderer>().sprite = magicSprite;
         audioManager.PlaySoundEffect(magicSound);
-        enemy.currentMP -= 200;
+        enemy.SubtractMP(MAGIC_COST);
         Invoke("TurnOnAnim", 1f);
-        DoDamage(enemy.magicDmg);
+        DoDamage(enemy.calcMagicDamage());
     }
 
     private void CheckHPOverflow()
     {
-        if (enemy.currentHP > enemy.maxHP) enemy.currentHP = enemy.maxHP;
+        if (enemy.GetCurrentHP() > enemy.GetMaxHP()) enemy.SetHP(enemy.GetMaxMP());
     }
 
     private void CheckMPOverflow()
     {
-        if (enemy.currentMP > enemy.maxMP) enemy.currentMP = enemy.maxMP;
+        if (enemy.GetCurrentMP() > enemy.GetMaxMP()) enemy.SetMP(enemy.GetMaxMP());
     }
 
     /// <summary>
@@ -271,13 +287,13 @@ public class EnemyStateMachine : MonoBehaviour {
         GetComponent<SpriteRenderer>().sprite = healSprite;
 
         float percentage = Random.value;
-        int healthToRestore = (int)(enemy.maxHP * percentage);
-        enemy.currentHP += healthToRestore;
+        int healthToRestore = (int)(enemy.GetMissingHP() * percentage);
+        enemy.AddHP(healthToRestore);
         CheckHPOverflow();
 
         percentage = Random.value;
-        int mpToRestore = (int)(enemy.maxMP * percentage);
-        enemy.currentMP += mpToRestore;
+        int mpToRestore = (int)(enemy.GetMissingMP() * percentage);
+        enemy.AddMP(mpToRestore);
         CheckMPOverflow();
 
         PopupTextController.CreatePopupText(healthToRestore.ToString(), transform, PopupTextController.Colors.GREEN);
@@ -300,10 +316,10 @@ public class EnemyStateMachine : MonoBehaviour {
     /// <param name="dmg">Damage to be taken</param>
     public void TakeDamage(int dmg)
     {
-        if (enemy.currentHP < dmg)
-            enemy.currentHP = 0;
+        if (enemy.GetCurrentHP() < dmg)
+            enemy.SetHP(0);
         else
-            enemy.currentHP -= dmg;
+            enemy.SubtractHP(dmg);
         PopupTextController.CreatePopupText(dmg.ToString(), transform);
         battleUI.UpdateUI();
     }

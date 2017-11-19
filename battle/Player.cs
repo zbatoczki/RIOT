@@ -5,16 +5,8 @@ using UnityEngine;
 /// <summary>
 /// Contains various stats such as health and damage
 /// </summary>
-public class Player {
+public class Player : BasePlayer {
 
-    private int maxHP = 9999;
-    private int currentHP = 9999;
-
-    private int maxMP = 999;
-    private int currentMP = 999;
-
-    private int attackDmg = 100;
-    private int magicDmg = 2000;
     [HideInInspector] public float defense = 0f;
 
     private int potionMaxQuantity = 3;
@@ -36,58 +28,6 @@ public class Player {
         MAXBANQUANTITY 
     }
 
-    public int GetMaxHP()
-    {
-        return maxHP;
-    }
-    public int GetMaxMP()
-    {
-        return maxMP;
-    }
-
-    public int GetCurrentHP()
-    {
-        return currentHP;
-    }
-    public int GetCurrentMP()
-    {
-        return currentMP;
-    }
-
-    public int GetMagicDmg()
-    {
-        return magicDmg;
-    }
-
-    public void SetHP(int hp)
-    {
-        currentHP = hp;
-    }
-
-    public void SetMP(int mp)
-    {
-        currentMP = mp;
-    }
-
-    public void AddHP(int health)
-    {
-        currentHP += health;
-    }
-
-    public void AddMP(int magic)
-    {
-        currentMP += magic;
-    }
-
-    public void SubtractHP(int cost)
-    {
-        currentHP -= cost;
-    }
-
-    public void SubtractMP(int cost)
-    {
-        currentMP -= cost;
-    }
 
     public void SubtractRestore()
     {
@@ -117,12 +57,5 @@ public class Player {
     public void SubtractMagicPotion()
     {
         magicPotionQuantity--;
-    }
-
-    public int calcDamage()
-    {
-        return Random.Range(1000, 1501);
-    }
-
-    
+    }   
 }

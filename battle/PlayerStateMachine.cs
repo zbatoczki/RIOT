@@ -115,17 +115,21 @@ public class PlayerStateMachine : MonoBehaviour {
 
         double percentHealthMissing = (double)health / player.GetMaxHP();
 
-        chosenAction = PlayerActions.ATTACK; //default action
+        System.Random random = new System.Random();
+        chosenAction = BattleSystem.random.NextDouble() >= 0.5 ? PlayerActions.ATTACK : PlayerActions.MAGIC;
+
+         if (chosenAction == PlayerActions.MAGIC && player.GetCurrentMP() < MAGIC_COST)
+            if(player.MagicPotionsAvail())
+                chosenAction = PlayerActions.MAGICPOTION;
+            else
+                chosenAction = PlayerActions.ATTACK;
+
         if (battleUI.LimitReady() && percentHealthMissing >= 0.25)
             chosenAction = PlayerActions.LIMIT;
         else if (percentHealthMissing <= 0.25 && player.PotionsAvail())
             chosenAction = PlayerActions.POTION;
         else if (percentHealthMissing <= 0.1 && player.RestoreAvail())
-            chosenAction = PlayerActions.RESTORE;
-        else if (magic >= MAGIC_COST)
-            chosenAction = PlayerActions.MAGIC;
-        else if(player.MagicPotionsAvail())
-            chosenAction = PlayerActions.MAGICPOTION;
+            chosenAction = PlayerActions.RESTORE;    
 
         StartCoroutine(PerformAction());
 
@@ -356,7 +360,7 @@ public class PlayerStateMachine : MonoBehaviour {
     /// <param name="percentage">Percentage to be restored</param>
     private void RestoreHP(float percentage)
     {
-        int missingHP = player.GetMaxHP() - player.GetCurrentHP();
+        int missingHP = player.GetMissingHP();
         int healthToRestore = Mathf.RoundToInt(missingHP * percentage);
         player.AddHP(healthToRestore);
         CheckHPOverflow();
@@ -372,7 +376,7 @@ public class PlayerStateMachine : MonoBehaviour {
     /// <param name="percentage">Percentage to be restored</param>
     private void RestoreMP(float percentage)
     {
-        int missingMP = player.GetMaxMP() - player.GetCurrentMP();
+        int missingMP = player.GetMissingMP();
         int mpToRestore = Mathf.RoundToInt(missingMP * percentage);
         player.AddMP(mpToRestore);
         CheckMPOverflow();
